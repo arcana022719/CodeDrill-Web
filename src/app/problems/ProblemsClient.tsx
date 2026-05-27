@@ -18,12 +18,14 @@ interface ProblemsClientProps {
     medium: number;
     hard: number;
   };
+  completed: number;
 }
 
 export default function ProblemsClient({
   initialProblems,
   categories,
   stats,
+  completed,
 }: ProblemsClientProps) {
   const [problems, setProblems] = useState<Problem[]>(initialProblems);
   const [searchQuery, setSearchQuery] = useState('');
@@ -148,7 +150,7 @@ export default function ProblemsClient({
       {/* Stats */}
       <ProblemStats
         available={filteredProblems.length}
-        completed={0}
+        completed={completed}
         totalPoints={filteredProblems.reduce(
           (sum, p) => sum + getPoints(p.difficulty),
           0

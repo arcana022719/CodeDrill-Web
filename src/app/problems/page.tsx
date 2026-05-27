@@ -1,4 +1,4 @@
-import { getProblems, getCategories, getProblemStats } from '@/lib/problems';
+import { getProblems, getCategories, getProblemStats, getUserCompletedCount } from '@/lib/problems';
 import { getCurrentUserWithRole } from '@/lib/auth-roles';
 import { redirect } from 'next/navigation';
 import ProblemsClient from './ProblemsClient';
@@ -10,10 +10,11 @@ export default async function ProblemsPage() {
     redirect('/');
   }
 
-  const [problems, categories, stats] = await Promise.all([
+  const [problems, categories, stats, completed] = await Promise.all([
     getProblems({ limit: 20 }),
     getCategories(),
     getProblemStats(),
+    getUserCompletedCount(),
   ]);
 
   return (
@@ -21,6 +22,7 @@ export default async function ProblemsPage() {
       initialProblems={problems}
       categories={categories}
       stats={stats}
+      completed={completed}
     />
   );
 }

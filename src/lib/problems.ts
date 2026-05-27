@@ -111,6 +111,32 @@ export async function getCategories(): Promise<string[]> {
 }
 
 /**
+ * Get the number of problems the current user has solved (accepted submissions)
+ */
+export async function getUserCompletedCount(): Promise<number> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return 0;
+
+  const { count, error } = await supabase
+    .from('user_problem_progress')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+    .eq('status', 'solved');
+
+  if (error) {
+    console.error('Error fetching user completed count:', error);
+    return 0;
+  }
+
+  return count ?? 0;
+}
+
+/**
  * Get problems count by difficulty
  */
 export async function getProblemStats(): Promise<{
