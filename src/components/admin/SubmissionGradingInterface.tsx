@@ -10,6 +10,7 @@ type Submission = {
   student_name: string;
   student_email: string;
   question_title: string;
+  question_text: string | null;
   question_type: string;
   essay_answer: string | null;
   word_count: number | null;
@@ -131,11 +132,14 @@ export default function SubmissionGradingInterface({
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
-                  <h3 className="text-lg font-semibold text-white">{submission.question_title}</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">{submission.question_title}</h3>
                   <span className="px-2 py-1 text-xs font-medium bg-blue-500/20 text-blue-400 rounded">
                     {submission.question_type?.replace('_', ' ') || 'Essay'}
                   </span>
                 </div>
+                {submission.question_text && (
+                  <p className="text-sm text-gray-600 mb-2">{submission.question_text}</p>
+                )}
                 
                 <p className="text-sm text-gray-400 mb-1">
                   Student: {submission.student_name} ({submission.student_email})
@@ -180,11 +184,14 @@ export default function SubmissionGradingInterface({
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
-                  <h3 className="text-lg font-semibold text-white">{submission.question_title}</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">{submission.question_title}</h3>
                   <span className="px-2 py-1 text-xs font-medium bg-blue-500/20 text-blue-400 rounded">
                     {submission.question_type?.replace('_', ' ') || 'Essay'}
                   </span>
                 </div>
+                {submission.question_text && (
+                  <p className="text-sm text-gray-600 mb-2">{submission.question_text}</p>
+                )}
                 
                 <p className="text-sm text-gray-400 mb-1">
                   Student: {submission.student_name} ({submission.student_email})
@@ -249,6 +256,17 @@ export default function SubmissionGradingInterface({
 
               <div className="space-y-4">
                 {/* Student Answer */}
+                {currentSubmission.question_text && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Essay Question
+                    </label>
+                    <div className="p-4 bg-gray-800/50 rounded border border-gray-700">
+                      <p className="text-sm text-gray-200">{currentSubmission.question_text}</p>
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
                     Student Answer ({currentSubmission.word_count} words)
