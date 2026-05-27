@@ -38,6 +38,8 @@ export default function ProblemDetailClient({ problem }: ProblemDetailClientProp
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [showResults, setShowResults] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [runError, setRunError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'description' | 'submissions'>('description');
 
   const languageLabels: Record<Language, string> = {
@@ -52,12 +54,15 @@ export default function ProblemDetailClient({ problem }: ProblemDetailClientProp
     setCode(problem.starterCode[lang] || '');
     setTestResults([]);
     setShowResults(false);
+    setSubmitError(null);
+    setRunError(null);
   };
 
   const handleRunCode = async () => {
     setIsRunning(true);
     setShowResults(false);
-    
+    setRunError(null);
+
     try {
       const result = await runCode({
         problemId: problem.id,
@@ -66,10 +71,16 @@ export default function ProblemDetailClient({ problem }: ProblemDetailClientProp
         testCases: problem.exampleTestCases,
       });
 
+      if (!result.success) {
+        setRunError(result.error || 'Failed to run code. Please try again.');
+        return;
+      }
+
       setTestResults(result.results);
       setShowResults(true);
     } catch (error) {
       console.error('Error running code:', error);
+      setRunError('An unexpected error occurred. Please try again.');
     } finally {
       setIsRunning(false);
     }
@@ -78,6 +89,7 @@ export default function ProblemDetailClient({ problem }: ProblemDetailClientProp
   const handleSubmit = async () => {
     setIsSubmitting(true);
     setShowResults(false);
+    setSubmitError(null);
 
     try {
       const result = await submitCode({
@@ -86,10 +98,16 @@ export default function ProblemDetailClient({ problem }: ProblemDetailClientProp
         code,
       });
 
+      if (!result.success) {
+        setSubmitError(result.error || 'Submission failed. Please try again.');
+        return;
+      }
+
       setTestResults(result.results);
       setShowResults(true);
     } catch (error) {
       console.error('Error submitting code:', error);
+      setSubmitError('An unexpected error occurred. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -251,6 +269,32 @@ export default function ProblemDetailClient({ problem }: ProblemDetailClientProp
               onChange={setCode}
             />
           </div>
+
+          {/* Error Banners */}
+          {runError && (
+            <div className="bg-red-900 border-t border-red-700 px-4 py-3 flex items-start gap-3">
+              <svg className="w-5 h-5 text-red-400 mt-0.5 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-red-300">Run failed</p>
+                <p className="text-sm text-red-400 mt-0.5">{runError}</p>
+              </div>
+              <button onClick={() => setRunError(null)} className="text-red-400 hover:text-red-200">✕</button>
+            </div>
+          )}
+          {submitError && (
+            <div className="bg-red-900 border-t border-red-700 px-4 py-3 flex items-start gap-3">
+              <svg className="w-5 h-5 text-red-400 mt-0.5 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-red-300">Submission failed</p>
+                <p className="text-sm text-red-400 mt-0.5">{submitError}</p>
+              </div>
+              <button onClick={() => setSubmitError(null)} className="text-red-400 hover:text-red-200">✕</button>
+            </div>
+          )}
 
           {/* Results Panel */}
           {showResults && (
