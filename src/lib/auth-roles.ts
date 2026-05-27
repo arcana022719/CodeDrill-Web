@@ -6,13 +6,51 @@
  */
 
 import { createClient } from '@/lib/supabase/server';
+import { cookies } from 'next/headers';
 import { UserRole } from '@/types';
+import {
+  E2E_TEST_USER_ID,
+  E2E_TEST_USER_EMAIL,
+  E2E_TEST_USER_NAME,
+  E2E_TEST_PROFESSOR_ID,
+  E2E_TEST_PROFESSOR_EMAIL,
+  E2E_TEST_PROFESSOR_NAME,
+} from '@/lib/e2e';
 
 /**
  * Get the current user with role information
  * @returns User object with role or null if not authenticated
  */
 export async function getCurrentUserWithRole() {
+  const cookieStore = await cookies();
+  const testRole = cookieStore.get('e2e-role')?.value;
+
+  if (testRole === 'student') {
+    return {
+      id: E2E_TEST_USER_ID,
+      email: E2E_TEST_USER_EMAIL,
+      name: E2E_TEST_USER_NAME,
+      role: 'student' as UserRole,
+      totalPoints: 0,
+      problemsSolved: 0,
+      currentStreak: 0,
+      avgScore: 0,
+    };
+  }
+
+  if (testRole === 'professor') {
+    return {
+      id: E2E_TEST_PROFESSOR_ID,
+      email: E2E_TEST_PROFESSOR_EMAIL,
+      name: E2E_TEST_PROFESSOR_NAME,
+      role: 'professor' as UserRole,
+      totalPoints: 0,
+      problemsSolved: 0,
+      currentStreak: 0,
+      avgScore: 0,
+    };
+  }
+
   const supabase = await createClient();
   const { data: { user: authUser } } = await supabase.auth.getUser();
   

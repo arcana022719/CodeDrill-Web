@@ -42,14 +42,21 @@ export default function LoginPage() {
     setError('');
 
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
+          skipBrowserRedirect: true,
         },
       });
 
       if (error) throw error;
+
+      if (!data?.url) {
+        throw new Error('Failed to start Google sign in');
+      }
+
+      window.location.assign(data.url);
     } catch (err: any) {
       setError(err.message || 'Failed to sign in with Google');
       setLoading(false);

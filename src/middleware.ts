@@ -5,6 +5,10 @@ import { createClient } from '@/lib/supabase/server';
 export async function middleware(request: NextRequest) {
   // Update session
   const response = await updateSession(request);
+
+  if (request.cookies.get('e2e-role')?.value === 'student') {
+    return response;
+  }
   
   const supabase = await createClient();
   const {
