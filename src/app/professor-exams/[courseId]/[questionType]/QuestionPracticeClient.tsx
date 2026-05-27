@@ -37,7 +37,7 @@ export default function QuestionPracticeClient({ courseId, questionType }: Props
   const [trueFalseAnswer, setTrueFalseAnswer] = useState<boolean | null>(null);
   
   const [showHints, setShowHints] = useState(false);
-  const [feedback, setFeedback] = useState<{ show: boolean; correct: boolean; points: number } | null>(null);
+  const [feedback, setFeedback] = useState<{ show: boolean; correct: boolean; points: number; isEssay?: boolean } | null>(null);
   const [questionStartTime, setQuestionStartTime] = useState(Date.now());
 
   // Initialize practice session
@@ -156,11 +156,14 @@ export default function QuestionPracticeClient({ courseId, questionType }: Props
           if (essayResult.success) {
             setFeedback({
               show: true,
-              correct: true,
-              points: 0, // Will be awarded after manual grading
+              correct: false,
+              points: 0,
+              isEssay: true,
             });
           } else {
-            throw new Error(essayResult.error || 'Failed to submit essay');
+            // Show specific DB error instead of generic message
+            alert(`Failed to submit essay: ${essayResult.error || 'Unknown error'}`);
+            return;
           }
           break;
 
@@ -522,13 +525,22 @@ export default function QuestionPracticeClient({ courseId, questionType }: Props
             {feedback?.show && (
               <div
                 className={`p-4 rounded-lg mb-6 ${
-                  feedback.correct
+                  feedback.isEssay
+                    ? 'bg-blue-500/20 border border-blue-500'
+                    : feedback.correct
                     ? 'bg-green-500/20 border border-green-500'
                     : 'bg-red-500/20 border border-red-500'
                 }`}
               >
                 <div className="flex items-center gap-2 mb-2">
-                  {feedback.correct ? (
+                  {feedback.isEssay ? (
+                    <>
+                      <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <span className="font-bold text-blue-400">Submitted</span>
+                    </>
+                  ) : feedback.correct ? (
                     <>
                       <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -545,8 +557,8 @@ export default function QuestionPracticeClient({ courseId, questionType }: Props
                   )}
                 </div>
                 <p className="text-sm text-gray-300">
-                  {questionType === 'essay' 
-                    ? 'Your answer has been submitted for manual grading.' 
+                  {feedback.isEssay
+                    ? 'Your essay has been submitted. Your professor will grade it soon.'
                     : `Points earned: ${feedback.points} / ${currentQuestion.points}`
                   }
                 </p>
@@ -561,7 +573,9 @@ export default function QuestionPracticeClient({ courseId, questionType }: Props
                 variant="primary"
                 className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
               >
-                {submitting ? 'Checking...' : 'Check Answer'}
+                {submitting
+                ? (questionType === 'essay' ? 'Submitting...' : 'Checking...')
+                : (questionType === 'essay' ? 'Submit Essay' : 'Check Answer')}
               </Button>
               {currentQuestion.hints && currentQuestion.hints.length > 0 && (
                 <Button onClick={handleShowHints} variant="secondary">
