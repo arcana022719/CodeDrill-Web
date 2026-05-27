@@ -217,6 +217,52 @@ export async function getSessionDetails(sessionId: string): Promise<{ data?: Act
   return { data: session as ActiveSessionData };
 }
 
+export async function submitPracticeAnswer(
+  practiceExamQuestionId: string,
+  sessionId: string,
+  studentAnswer: any,
+  isCorrect: boolean | null
+) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: 'Unauthorized' };
+  }
+
+  // Verify the session belongs to this user before updating
+  const { data: session } = await supabase
+    .from('practice_sessions')
+    .select('id')
+    .eq('id', sessionId)
+    .eq('user_id', user.id)
+    .single();
+
+  if (!session) {
+    return { error: 'Session not found or unauthorized' };
+  }
+
+  const { error } = await supabase
+    .from('practice_exam_questions')
+    .update({
+      answered_at: new Date().toISOString(),
+      is_correct: isCorrect,
+      student_answer: studentAnswer,
+    })
+    .eq('id', practiceExamQuestionId);
+
+  if (error) {
+    console.error('Error submitting practice answer:', error);
+    return { error: error.message };
+  }
+
+  revalidatePath(`/practice/${sessionId}`);
+  return { success: true };
+}
+
 export async function updateSessionStatus(sessionId: string, status: 'completed' | 'abandoned') {
   const supabase = await createClient();
 
