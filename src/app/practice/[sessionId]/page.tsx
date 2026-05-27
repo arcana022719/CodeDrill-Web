@@ -7,7 +7,7 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import CodeWithBlanks from '@/components/practice/CodeWithBlanks';
 import { createClient } from '@/lib/supabase/client';
-import { updateSessionStatus } from '../actions';
+import { updateSessionStatus, submitPracticeAnswer } from '../actions';
 import { recordQuestionAnswer } from '@/lib/question-selection';
 import type { ExamQuestion, QuestionTypeCategory } from '@/types/professor-exam';
 
@@ -23,6 +23,7 @@ interface PracticeExamQuestion {
   exam_question_id: string;
   answered_at: string | null;
   is_correct: boolean | null;
+  student_answer?: any;
   time_spent_seconds: number | null;
   exam_question: ExamQuestion;
 }
@@ -125,58 +126,96 @@ export default function PracticeSessionPage({ params }: PracticeSessionPageProps
     setAnswers(prev => ({ ...prev, [questionId]: answer }));
   };
 
+  // Returns true when an answer is missing or empty (handles strings, booleans, and blank-fill objects)
+  const isAnswerEmpty = (answer: any): boolean => {
+    if (answer === null || answer === undefined) return true;
+    if (typeof answer === 'boolean') return false;
+    if (typeof answer === 'string') return answer.trim() === '';
+    if (typeof answer === 'object') {
+      const values = Object.values(answer) as string[];
+      return values.length === 0 || values.every(v => v.trim() === '');
+    }
+    return false;
+  };
+
   const handleSubmitAnswer = async () => {
     if (!session?.practice_exam_questions) return;
-    
+
     const currentQuestion = session.practice_exam_questions[currentQuestionIndex];
     const answer = answers[currentQuestion.exam_question_id];
-    
-    if (!answer) {
+
+    if (isAnswerEmpty(answer)) {
       alert('Please provide an answer before submitting');
       return;
     }
-    
+
     setSubmitting(true);
-    
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      
-      // Determine if answer is correct (for auto-gradable types)
+
+      // Determine if answer is correct (auto-graded question types)
       let isCorrect: boolean | null = null;
       const question = currentQuestion.exam_question;
-      
+
       if (question.question_type_category === 'multiple_choice') {
         isCorrect = answer === question.correct_answer;
       } else if (question.question_type_category === 'true_false') {
         isCorrect = answer === question.correct_boolean;
+      } else if (question.question_type_category === 'output_tracing' && question.expected_output) {
+        // Normalise line endings and trim surrounding whitespace before comparing
+        const userOutput = (answer as string).trim().replace(/\r\n/g, '\n');
+        const expectedOutput = question.expected_output.trim().replace(/\r\n/g, '\n');
+        isCorrect = userOutput === expectedOutput;
+      } else if (question.question_type_category === 'code_analysis' && question.blanks) {
+        // All blanks must match (case-insensitive, trimmed)
+        const userBlanks = answer as Record<string, string>;
+        isCorrect = Object.entries(question.blanks as Record<string, string>).every(
+          ([key, expected]) =>
+            (userBlanks[key] ?? '').trim().toLowerCase() === expected.trim().toLowerCase()
+        );
       }
-      // For code_analysis, output_tracing, essay: isCorrect stays null (needs manual grading or self-review)
-      
-      // Update practice_exam_questions record
-      await supabase
-        .from('practice_exam_questions')
-        .update({
-          answered_at: new Date().toISOString(),
-          is_correct: isCorrect,
-        })
-        .eq('id', currentQuestion.id);
-      
-      // Record answer in user_question_history
-      if (isCorrect !== null) {
-        await recordQuestionAnswer(user.id, currentQuestion.exam_question_id, isCorrect);
+      // essay: isCorrect stays null (needs manual self-review)
+
+      // Persist via server action (handles auth, RLS, and saves the actual answer)
+      const result = await submitPracticeAnswer(
+        currentQuestion.id,
+        session.id,
+        answer,
+        isCorrect
+      );
+
+      if (result.error) {
+        alert(`Failed to submit answer: ${result.error}`);
+        return;
       }
-      
-      // Move to next question or end session
+
+      // Keep local state in sync so the progress bar updates immediately
+      setSession(prev => {
+        if (!prev?.practice_exam_questions) return prev;
+        return {
+          ...prev,
+          practice_exam_questions: prev.practice_exam_questions.map((q, idx) =>
+            idx === currentQuestionIndex
+              ? { ...q, answered_at: new Date().toISOString(), is_correct: isCorrect }
+              : q
+          ),
+        };
+      });
+
+      // Update smart-selection history for all answered questions
+      await recordQuestionAnswer(user.id, currentQuestion.exam_question_id, isCorrect ?? false);
+
+      // Advance to next question, or end session when all are done
       if (currentQuestionIndex < session.practice_exam_questions.length - 1) {
         setCurrentQuestionIndex(prev => prev + 1);
       } else {
-        // All questions answered, complete session
         await handleEndSession('completed');
       }
-      
-    } catch (error) {
-      console.error('Error submitting answer:', error);
+
+    } catch (err) {
+      console.error('Error submitting answer:', err);
       alert('Failed to submit answer. Please try again.');
     } finally {
       setSubmitting(false);
@@ -576,7 +615,7 @@ export default function PracticeSessionPage({ params }: PracticeSessionPageProps
               
               <Button
                 onClick={handleSubmitAnswer}
-                disabled={submitting || !answers[question.id]}
+                disabled={submitting || isAnswerEmpty(answers[question.id])}
               >
                 {submitting 
                   ? 'Submitting...' 
