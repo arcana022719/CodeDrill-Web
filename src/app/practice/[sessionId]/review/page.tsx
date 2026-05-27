@@ -19,7 +19,8 @@ interface PracticeExamQuestion {
   id: string;
   session_id: string;
   exam_question_id: string;
-  user_answer?: any;
+  /** Saved answer from the DB (column: student_answer JSONB) */
+  student_answer?: any;
   answered_at: string | null;
   is_correct: boolean | null;
   time_spent_seconds: number | null;
@@ -158,6 +159,8 @@ export default function SessionReviewPage({ params }: ReviewPageProps) {
             const question = item.exam_question;
             const answered = item.answered_at !== null;
             const isCorrect = item.is_correct;
+            const isEssay = question.question_type_category === 'essay';
+            const pendingGrading = isEssay && answered && isCorrect === null;
 
             return (
               <Card
@@ -167,6 +170,8 @@ export default function SessionReviewPage({ params }: ReviewPageProps) {
                     ? 'border-l-4 border-green-500'
                     : isCorrect === false
                     ? 'border-l-4 border-red-500'
+                    : pendingGrading
+                    ? 'border-l-4 border-yellow-400'
                     : answered
                     ? 'border-l-4 border-gray-400'
                     : 'border-l-4 border-gray-300'
@@ -187,6 +192,11 @@ export default function SessionReviewPage({ params }: ReviewPageProps) {
                       {isCorrect === false && (
                         <span className="px-3 py-1 bg-red-100 text-red-700 rounded-md text-sm font-medium">
                           ✗ Incorrect
+                        </span>
+                      )}
+                      {pendingGrading && (
+                        <span className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-md text-sm font-medium">
+                          ⏳ Pending Professor Grading
                         </span>
                       )}
                       {!answered && (
@@ -210,8 +220,8 @@ export default function SessionReviewPage({ params }: ReviewPageProps) {
                       codeSnippet={question.code_snippet}
                       blanks={question.blanks}
                       userAnswers={
-                        typeof item.user_answer === 'object' && item.user_answer
-                          ? item.user_answer as Record<string, string>
+                        typeof item.student_answer === 'object' && item.student_answer
+                          ? item.student_answer as Record<string, string>
                           : {}
                       }
                       onChange={() => {}} // Read-only in review mode
@@ -257,13 +267,23 @@ export default function SessionReviewPage({ params }: ReviewPageProps) {
                   </div>
                 )}
 
-                {/* For code_analysis, output_tracing, essay - show expected answer/tips */}
-                {question.question_type_category === 'output_tracing' && question.expected_output && (
-                  <div className="mt-4 bg-blue-50 p-4 rounded-lg">
-                    <h4 className="font-medium text-blue-800 mb-2">Expected Output:</h4>
-                    <pre className="text-blue-700 font-mono text-sm whitespace-pre-wrap">{question.expected_output}</pre>
-                    {question.output_tips && (
-                      <p className="text-blue-600 text-sm mt-2">💡 {question.output_tips}</p>
+                {/* For output_tracing – show user answer alongside expected */}
+                {question.question_type_category === 'output_tracing' && (
+                  <div className="mt-4 space-y-3">
+                    {item.student_answer && typeof item.student_answer === 'string' && (
+                      <div className={`p-4 rounded-lg border ${item.is_correct === true ? 'bg-green-50 border-green-200' : item.is_correct === false ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'}`}>
+                        <h4 className="font-medium mb-2">Your Output:</h4>
+                        <pre className="font-mono text-sm whitespace-pre-wrap">{item.student_answer}</pre>
+                      </div>
+                    )}
+                    {question.expected_output && (
+                      <div className="bg-blue-50 p-4 rounded-lg">
+                        <h4 className="font-medium text-blue-800 mb-2">Expected Output:</h4>
+                        <pre className="text-blue-700 font-mono text-sm whitespace-pre-wrap">{question.expected_output}</pre>
+                        {question.output_tips && (
+                          <p className="text-blue-600 text-sm mt-2">💡 {question.output_tips}</p>
+                        )}
+                      </div>
                     )}
                   </div>
                 )}
@@ -300,23 +320,23 @@ export default function SessionReviewPage({ params }: ReviewPageProps) {
                     )}
                     
                     {/* Show user's essay answer */}
-                    {item.user_answer && typeof item.user_answer === 'string' && (
+                    {item.student_answer && typeof item.student_answer === 'string' && (
                       <div className="bg-gray-50 p-4 rounded-lg border border-gray-300">
                         <div className="flex items-center justify-between mb-3">
                           <h4 className="font-medium text-gray-800">Your Essay Answer:</h4>
                           {(() => {
-                            const wordCount = (item.user_answer as string).trim().split(/\s+/).filter(w => w.length > 0).length;
+                            const wordCount = (item.student_answer as string).trim().split(/\s+/).filter(w => w.length > 0).length;
                             const requirements = question.essay_requirements;
                             let minWords = 0;
                             let maxWords = Infinity;
-                            
+
                             if (typeof requirements === 'object' && requirements !== null && requirements.word_count) {
                               minWords = requirements.word_count[0];
                               maxWords = requirements.word_count[1];
                             }
-                            
+
                             const isValid = wordCount >= minWords && wordCount <= maxWords;
-                            
+
                             return (
                               <span className={`text-sm font-medium ${isValid ? 'text-green-600' : 'text-orange-600'}`}>
                                 {wordCount} words {isValid ? '✓' : '(outside range)'}
@@ -325,7 +345,7 @@ export default function SessionReviewPage({ params }: ReviewPageProps) {
                           })()}
                         </div>
                         <div className="prose max-w-none">
-                          <p className="text-gray-700 whitespace-pre-wrap">{item.user_answer as string}</p>
+                          <p className="text-gray-700 whitespace-pre-wrap">{item.student_answer as string}</p>
                         </div>
                       </div>
                     )}
@@ -355,11 +375,11 @@ export default function SessionReviewPage({ params }: ReviewPageProps) {
 
         {/* Self-Review Note */}
         <div className="mt-8 p-6 bg-blue-50 rounded-lg border border-blue-200">
-          <h3 className="font-semibold text-blue-900 mb-2">📝 Self-Review</h3>
+          <h3 className="font-semibold text-blue-900 mb-2">📝 Session Notes</h3>
           <p className="text-sm text-blue-800">
-            Practice sessions are designed for self-improvement. Review the correct answers and explanations above to
-            understand your mistakes. For essay and code analysis questions, compare your answers with the provided
-            requirements and tips. Remember: practice is risk-free and won't affect your grades!
+            Review the correct answers and explanations above to understand your mistakes. For code analysis and output
+            tracing questions, the correct answers are shown automatically. Essay answers are submitted to your professor
+            and will be graded manually — you&apos;ll see your score once grading is complete.
           </p>
         </div>
       </div>
