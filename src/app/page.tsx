@@ -160,7 +160,7 @@ export default async function Home() {
             </svg>
           }
           value={stats.submissionCount.toString()}
-          label="Student Submissions"
+          label="All Submissions"
           color="bg-green-50"
         />
       </div>
