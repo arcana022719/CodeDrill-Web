@@ -1302,7 +1302,7 @@ export async function gradeEssayAnswer(input: {
  * Get submissions requiring grading for a course
  */
 export async function getSubmissionsForGrading(
-  courseId: string,
+  courseId?: string | null,
   questionTypeCategory?: QuestionTypeCategory,
   gradedStatus: 'ungraded' | 'graded' | 'all' = 'ungraded'
 ) {
@@ -1325,7 +1325,7 @@ export async function getSubmissionsForGrading(
   }
 
   const { data, error } = await supabase.rpc('get_submissions_for_grading', {
-    p_course_id: courseId,
+    p_course_id: courseId || null,
     p_question_type_category: questionTypeCategory || null,
     p_graded_status: gradedStatus,
   });

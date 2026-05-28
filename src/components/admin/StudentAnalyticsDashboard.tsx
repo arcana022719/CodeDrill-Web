@@ -19,6 +19,7 @@ type StudentAnalytics = {
 export function StudentAnalyticsDashboard({ courseId }: { courseId?: string }) {
   const [analytics, setAnalytics] = useState<StudentAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadAnalytics();
@@ -26,15 +27,24 @@ export function StudentAnalyticsDashboard({ courseId }: { courseId?: string }) {
 
   async function loadAnalytics() {
     setLoading(true);
+    setError(null);
     try {
       const params = new URLSearchParams();
       if (courseId) params.append('course_id', courseId);
 
       const res = await fetch(`/api/admin/analytics?${params}`);
-      const data = await res.json();
-      setAnalytics(data.analytics);
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to load analytics');
+      }
+
+      setAnalytics(data.analytics || null);
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load analytics';
       console.error('Failed to load analytics:', error);
+      setError(message);
+      setAnalytics(null);
     } finally {
       setLoading(false);
     }
@@ -42,6 +52,15 @@ export function StudentAnalyticsDashboard({ courseId }: { courseId?: string }) {
 
   if (loading) {
     return <Card><p className="text-gray-600">Loading analytics...</p></Card>;
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <p className="font-medium text-red-600">Unable to load analytics</p>
+        <p className="mt-1 text-sm text-gray-600">{error}</p>
+      </Card>
+    );
   }
 
   if (!analytics) {
@@ -90,8 +109,8 @@ export function StudentAnalyticsDashboard({ courseId }: { courseId?: string }) {
               </tr>
             </thead>
             <tbody>
-              {analytics.students.slice(0, 20).map((student, idx) => (
-                <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50">
+              {analytics.students.slice(0, 20).map((student) => (
+                <tr key={student.user_id} className="border-b border-gray-100 hover:bg-gray-50">
                   <td className="py-3 px-4 text-gray-900">{student.users.name}</td>
                   <td className="py-3 px-4 text-gray-600 text-sm">{student.users.email}</td>
                   <td className="py-3 px-4 text-right">
@@ -106,6 +125,13 @@ export function StudentAnalyticsDashboard({ courseId }: { courseId?: string }) {
                   <td className="py-3 px-4 text-right text-gray-900 font-medium">{student.total_points}</td>
                 </tr>
               ))}
+              {analytics.students.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="py-6 px-4 text-center text-gray-500">
+                    No student activity yet.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
