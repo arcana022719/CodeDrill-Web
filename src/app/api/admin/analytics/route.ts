@@ -1,6 +1,16 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
+type AdminStudentAnalyticsRow = {
+  user_id: string;
+  student_name: string;
+  student_email: string;
+  total_submissions: number | null;
+  total_points: number | null;
+  avg_accuracy: number | null;
+  last_submission_at: string | null;
+};
+
 async function requireProfessorOrAdmin() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -40,7 +50,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const students = (studentRows || []).map((student) => ({
+  const rows: AdminStudentAnalyticsRow[] = (studentRows ?? []) as AdminStudentAnalyticsRow[];
+
+  const students = rows.map((student) => ({
     user_id: student.user_id,
     users: {
       id: student.user_id,
