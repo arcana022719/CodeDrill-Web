@@ -1,12 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { gradeEssayAnswer } from '@/app/professor-exams/actions';
 
 type Submission = {
   answer_id: string;
+  course_id?: string | null;
+  course_code?: string | null;
+  course_name?: string | null;
   student_name: string;
   student_email: string;
   question_title: string;
@@ -24,16 +28,25 @@ type Submission = {
 };
 
 type Props = {
-  courseId: string;
   initialPendingSubmissions: Submission[];
   initialGradedSubmissions: Submission[];
+  availableCourses?: Array<{
+    id: string;
+    course_code: string;
+    name: string;
+  }>;
+  currentCourseId?: string | null;
 };
 
 export default function SubmissionGradingInterface({ 
-  courseId,
   initialPendingSubmissions,
-  initialGradedSubmissions 
+  initialGradedSubmissions,
+  availableCourses = [],
+  currentCourseId = null,
 }: Props) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<'pending' | 'graded'>('pending');
   const [pendingSubmissions, setPendingSubmissions] = useState(initialPendingSubmissions);
   const [gradedSubmissions, setGradedSubmissions] = useState(initialGradedSubmissions);
@@ -41,6 +54,28 @@ export default function SubmissionGradingInterface({
   const [pointsAwarded, setPointsAwarded] = useState<number>(0);
   const [feedback, setFeedback] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showCourseFilter, setShowCourseFilter] = useState(false);
+  const [selectedCourseId, setSelectedCourseId] = useState<string>(currentCourseId ?? '');
+
+  useEffect(() => {
+    setSelectedCourseId(currentCourseId ?? '');
+  }, [currentCourseId]);
+
+  const selectedCourse = availableCourses.find((course) => course.id === selectedCourseId);
+
+  const applyCourseFilter = () => {
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (selectedCourseId) {
+      params.set('courseId', selectedCourseId);
+    } else {
+      params.delete('courseId');
+    }
+
+    const query = params.toString();
+    router.push(query ? `${pathname}?${query}` : pathname);
+    setShowCourseFilter(false);
+  };
 
   const handleGradeSubmission = async (submission: Submission) => {
     setGradingSubmissionId(submission.answer_id);
@@ -89,6 +124,20 @@ export default function SubmissionGradingInterface({
 
   return (
     <div>
+      {availableCourses.length > 0 && (
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-sm text-gray-400">
+            {selectedCourse
+              ? `Filtered to ${selectedCourse.course_code} - ${selectedCourse.name}`
+              : 'Showing submissions from all courses'}
+          </div>
+
+          <Button variant="outline" onClick={() => setShowCourseFilter(true)}>
+            Filter Courses
+          </Button>
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="flex gap-4 mb-6 border-b border-gray-700">
         <button
@@ -137,6 +186,12 @@ export default function SubmissionGradingInterface({
                     {submission.question_type?.replace('_', ' ') || 'Essay'}
                   </span>
                 </div>
+                {(submission.course_code || submission.course_name) && (
+                  <p className="text-xs font-medium uppercase tracking-wide text-cyan-400 mb-2">
+                    {submission.course_code}
+                    {submission.course_name ? ` - ${submission.course_name}` : ''}
+                  </p>
+                )}
                 {submission.question_text && (
                   <p className="text-sm text-gray-600 mb-2">{submission.question_text}</p>
                 )}
@@ -189,6 +244,12 @@ export default function SubmissionGradingInterface({
                     {submission.question_type?.replace('_', ' ') || 'Essay'}
                   </span>
                 </div>
+                {(submission.course_code || submission.course_name) && (
+                  <p className="text-xs font-medium uppercase tracking-wide text-cyan-400 mb-2">
+                    {submission.course_code}
+                    {submission.course_name ? ` - ${submission.course_name}` : ''}
+                  </p>
+                )}
                 {submission.question_text && (
                   <p className="text-sm text-gray-600 mb-2">{submission.question_text}</p>
                 )}
@@ -323,6 +384,68 @@ export default function SubmissionGradingInterface({
                     {isSubmitting ? 'Saving...' : 'Save Grade'}
                   </Button>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCourseFilter && availableCourses.length > 0 && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 rounded-lg max-w-2xl w-full max-h-[85vh] overflow-y-auto border border-gray-700">
+            <div className="p-6">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-white mb-1">Filter by Course</h2>
+                  <p className="text-gray-400">Choose one course or view all submissions.</p>
+                </div>
+                <button
+                  onClick={() => setShowCourseFilter(false)}
+                  className="text-gray-400 hover:text-white"
+                  aria-label="Close course filter"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="space-y-2 mb-6">
+                <button
+                  type="button"
+                  onClick={() => setSelectedCourseId('')}
+                  className={`w-full rounded-lg border px-4 py-3 text-left transition-colors ${
+                    selectedCourseId === ''
+                      ? 'border-blue-500 bg-blue-500/10 text-white'
+                      : 'border-gray-700 bg-gray-800/60 text-gray-300 hover:border-gray-600'
+                  }`}
+                >
+                  <div className="font-medium">All Courses</div>
+                  <div className="text-sm text-gray-400">Show every submission you can review</div>
+                </button>
+
+                {availableCourses.map((course) => (
+                  <button
+                    key={course.id}
+                    type="button"
+                    onClick={() => setSelectedCourseId(course.id)}
+                    className={`w-full rounded-lg border px-4 py-3 text-left transition-colors ${
+                      selectedCourseId === course.id
+                        ? 'border-blue-500 bg-blue-500/10 text-white'
+                        : 'border-gray-700 bg-gray-800/60 text-gray-300 hover:border-gray-600'
+                    }`}
+                  >
+                    <div className="font-medium">{course.course_code}</div>
+                    <div className="text-sm text-gray-400">{course.name}</div>
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <Button variant="outline" onClick={() => setShowCourseFilter(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={applyCourseFilter}>Apply Filter</Button>
               </div>
             </div>
           </div>

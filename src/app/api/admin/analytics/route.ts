@@ -32,89 +32,54 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const courseId = searchParams.get('course_id');
 
-  // First, get all students
-  const { data: allStudents, error: studentsError } = await supabase
-    .from('users')
-    .select('id, name, email')
-    .eq('role', 'student')
-    .order('name');
-
-  if (studentsError) {
-    return NextResponse.json({ error: studentsError.message }, { status: 500 });
-  }
-
-  if (!allStudents || allStudents.length === 0) {
-    return NextResponse.json({
-      analytics: {
-        totalStudents: 0,
-        avgAccuracy: 0,
-        totalSubmissions: 0,
-        completionRate: 0,
-        students: [],
-      }
-    });
-  }
-
-  // Get exam progress for all students
-  let query = supabase
-    .from('user_exam_progress')
-    .select(`
-      *,
-      exam_templates (
-        id,
-        title,
-        course_id,
-        professor_courses (course_code, name)
-      )
-    `)
-    .in('user_id', allStudents.map(s => s.id))
-    .order('accuracy', { ascending: false });
-
-  if (courseId) {
-    query = query.eq('course_id', courseId);
-  }
-
-  const { data: progressData, error } = await query;
+  const { data: studentRows, error } = await supabase.rpc('get_admin_student_analytics', {
+    p_course_id: courseId || null,
+  });
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Merge student data with progress data
-  const studentsWithProgress = allStudents.map(student => {
-    const studentProgress = progressData?.filter(p => p.user_id === student.id) || [];
-    
-    const avgAccuracy = studentProgress.length > 0
-      ? studentProgress.reduce((sum, p) => sum + p.accuracy, 0) / studentProgress.length
-      : 0;
-    
-    const totalPoints = studentProgress.reduce((sum, p) => sum + (p.total_points || 0), 0);
-    
-    return {
-      user_id: student.id,
-      users: { id: student.id, name: student.name, email: student.email },
-      accuracy: avgAccuracy,
-      total_points: totalPoints,
-      exam_count: studentProgress.length,
-    };
+  const students = (studentRows || []).map((student) => ({
+    user_id: student.user_id,
+    users: {
+      id: student.user_id,
+      name: student.student_name,
+      email: student.student_email,
+    },
+    accuracy: Number(student.avg_accuracy || 0),
+    total_points: Number(student.total_points || 0),
+    submission_count: Number(student.total_submissions || 0),
+    last_submission_at: student.last_submission_at,
+  })).sort((left, right) => {
+    if (right.submission_count !== left.submission_count) {
+      return right.submission_count - left.submission_count;
+    }
+
+    if (right.accuracy !== left.accuracy) {
+      return right.accuracy - left.accuracy;
+    }
+
+    return left.users.name.localeCompare(right.users.name);
   });
 
-  // Calculate aggregate stats
-  const totalSubmissions = progressData?.length || 0;
-  const avgAccuracy = progressData && progressData.length > 0
-    ? progressData.reduce((sum, p) => sum + p.accuracy, 0) / progressData.length
+  const totalStudents = students.length;
+  const activeStudents = students.filter((student) => student.submission_count > 0);
+  const totalSubmissions = students.reduce((sum, student) => sum + student.submission_count, 0);
+  const avgAccuracy = activeStudents.length > 0
+    ? activeStudents.reduce((sum, student) => sum + student.accuracy, 0) / activeStudents.length
     : 0;
-  const completionRate = progressData && progressData.length > 0
-    ? (progressData.filter(p => p.status === 'completed').length / totalSubmissions) * 100
+  const completionRate = totalStudents > 0
+    ? (activeStudents.length / totalStudents) * 100
     : 0;
 
   return NextResponse.json({
     analytics: {
-      totalStudents: allStudents.length,
+      totalStudents,
       avgAccuracy: Math.round(avgAccuracy * 100) / 100,
       totalSubmissions,
       completionRate: Math.round(completionRate * 100) / 100,
-      students: studentsWithProgress,
+      students,
     }
   });
 }

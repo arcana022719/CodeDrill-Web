@@ -44,7 +44,6 @@ export default async function CourseSubmissionsPage({
       </div>
 
       <SubmissionGradingInterface 
-        courseId={courseId}
         initialPendingSubmissions={pendingSubmissions}
         initialGradedSubmissions={gradedSubmissions}
       />
